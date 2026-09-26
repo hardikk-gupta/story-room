@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#050507" />
+    <title>Story Room</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body class="is-loading">
+    <canvas id="scene"></canvas>
+
+    <!-- Tall track that drives the scroll-mapped intro. Removed once the game starts. -->
+    <div id="scroll-track" aria-hidden="true"></div>
+
+    <div id="loader">
+      <div class="loader-inner">
+        <p class="loader-label">Entering the studio</p>
+        <div class="loader-bar"><span id="loader-fill"></span></div>
+        <p class="loader-pct"><span id="loader-pct">0</span>%</p>
+      </div>
+    </div>
+
+    <section id="intro" aria-live="polite">
+      <div class="intro-side intro-left">
+        <p class="eyebrow" data-reveal></p>
+        <h1 data-reveal></h1>
+        <p class="role" data-reveal></p>
+      </div>
+      <div class="intro-side intro-right">
+        <p class="lede" data-reveal></p>
+        <p class="welcome" data-reveal></p>
+      </div>
+      <div class="intro-hint" data-reveal>
+        <span class="mouse"><span></span></span>
+        <span class="hint-desktop">Scroll to turn on the lights · press <kbd>→</kbd> to skip</span>
+        <span class="hint-touch">Swipe up to turn on the lights · tap to skip</span>
+      </div>
+    </section>
+
+    <button id="sound" class="pill" type="button" aria-pressed="true">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <path d="M11 5 6 9H3v6h3l5 4V5z" /><path d="M15.5 8.5a5 5 0 0 1 0 7" /><path d="M18.5 5.5a9 9 0 0 1 0 13" />
+      </svg>
+      <span>Sound on</span>
+    </button>
+
+    <div id="hud" hidden>
+      <div id="crosshair"></div>
+      <div id="prompt" hidden><kbd>Space</kbd><span>Pick up</span></div>
+      <div id="controls-hint">
+        <span class="hint-desktop">
+          <kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> / <kbd>WASD</kbd> move · <kbd>Shift</kbd> run ·
+          click &amp; move the mouse to look · <kbd>Space</kbd> interact
+        </span>
+      </div>
+      <button id="lock-hint" class="pill" type="button">Click to look around</button>
+    </div>
+
+    <div id="touch-ui" hidden>
+      <div id="look-zone"></div>
+      <div id="joystick"><div id="joystick-knob"></div></div>
+      <div class="touch-buttons">
+        <button id="btn-run" type="button" aria-pressed="false">Run</button>
+        <button id="btn-action" type="button" disabled>Grab</button>
+      </div>
+    </div>
+
+    <div id="rotate" hidden>
+      <div class="rotate-phone"></div>
+      <p>Turn your phone sideways to walk around the studio</p>
+    </div>
+
+    <div id="inspect" hidden>
+      <figure>
+        <img id="inspect-img" alt="" />
+        <figcaption>
+          <h2 id="inspect-title"></h2>
+          <p id="inspect-desc"></p>
+          <p class="inspect-hint">
+            <span class="hint-desktop">Press <kbd>Space</kbd> to put it back</span>
+            <span class="hint-touch">Tap <b>Put back</b> to hang it on the wall</span>
+          </p>
+        </figcaption>
+      </figure>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

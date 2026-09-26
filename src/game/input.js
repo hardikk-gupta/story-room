@@ -55,17 +55,17 @@ export class Input {
 
   onKey(e, down) {
     const k = e.code;
-    const gameKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'];
+    const gameKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'KeyE'];
     // typing into a form field (e.g. none today, but future-proof) shouldn't drive the game
     if (e.target && /INPUT|TEXTAREA/.test(e.target.tagName)) return;
     if (down) {
       this.handlers.anyKey.forEach((f) => f(k, e));
-      if (k === 'Space' && !e.repeat) {
+      if ((k === 'Space' || k === 'KeyE' || k === 'Enter') && !e.repeat) {
         this.actionHeld = true;
         this.handlers.action.forEach((f) => f());
       }
       if ((k === 'Escape' || k === 'KeyQ') && !e.repeat) this.handlers.cancel.forEach((f) => f());
-    } else if (k === 'Space') {
+    } else if (k === 'Space' || k === 'KeyE' || k === 'Enter') {
       this.actionHeld = false;
       this.handlers.release.forEach((f) => f());
     }

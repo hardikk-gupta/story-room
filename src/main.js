@@ -176,7 +176,8 @@ const { stations, story, bulb, pitchos, sparkFx } = ctx;
 ].forEach((st) => stations.add(st));
 // the gallery spark: pick up three different frames
 const inspected = new Set();
-ctx.galleryAnchor = { id: 'gallery', pos: new THREE.Vector3(-6.4, 1.4, 0) };
+ctx.galleryAnchor = { id: 'gallery', title: 'Gallery · pick up 3', pos: new THREE.Vector3(-6.4, 1.4, 0), isFocus: () => !!interactor.focus };
+stations.initBeacons([ctx.galleryAnchor]);
 ctx.galleryCount = () => inspected.size;
 interactor.onInspect = (i) => {
   inspected.add(i);
@@ -355,6 +356,7 @@ function frame() {
       avatar.lookYaw = 0;
     }
     document.body.classList.toggle('in-station', stations.busy && stations.phase !== 'approach');
+    stations.updateBeacons(camera, player, story, story.started && !pitchos.isOpen && !(stations.busy && stations.phase !== 'approach') && !interactor.busy);
     story.update(dt);
     bulb.update(dt, player, camera);
     sparkFx.update(dt);

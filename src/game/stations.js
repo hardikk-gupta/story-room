@@ -33,6 +33,47 @@ export class Stations {
     return st;
   }
 
+  // Floating labels over everything you can use, visible from across the room.
+  initBeacons(extra = []) {
+    this.beaconRoot = ui.$('beacons');
+    this.beacons = [...this.list, ...extra].map((st) => {
+      const el = document.createElement('div');
+      el.className = 'beacon';
+      this.beaconRoot.appendChild(el);
+      return { st, el, html: '' };
+    });
+  }
+
+  updateBeacons(camera, player, story, show) {
+    if (!this.beacons) return;
+    const w = innerWidth;
+    const h = innerHeight;
+    const v = new THREE.Vector3();
+    for (const b of this.beacons) {
+      const { st, el } = b;
+      const d = Math.hypot(st.pos.x - player.pos.x, st.pos.z - player.pos.z);
+      v.set(st.pos.x, Math.max(st.pos.y + 0.55, 1.5), st.pos.z).project(camera);
+      const visible = show && d < 12 && v.z < 1 && Math.abs(v.x) < 1.05 && Math.abs(v.y) < 1.05;
+      el.style.display = visible ? '' : 'none';
+      if (!visible) continue;
+      const secret = story.secretIds.includes(st.id);
+      const done = secret ? story.hasSecret(st.id) : story.has(st.id) || (st.id === 'ship' && story.shipped);
+      const focus = this.focus === st || (st.isFocus && st.isFocus());
+      const icon = done ? '✓' : secret ? '★' : '✦';
+      const label = secret && !done && d > 3.2 ? '?' : st.title;
+      const html = `<i>${icon}</i><span>${label}</span>${focus ? '<kbd>Space</kbd>' : ''}`;
+      if (html !== b.html) {
+        el.innerHTML = html;
+        b.html = html;
+      }
+      el.classList.toggle('focus', !!focus);
+      el.classList.toggle('done', !!done);
+      el.classList.toggle('secret', secret);
+      el.style.opacity = focus ? 1 : Math.max(0.45, Math.min(1, 1.5 - d / 10));
+      el.style.transform = `translate(${(v.x * 0.5 + 0.5) * w}px, ${(-v.y * 0.5 + 0.5) * h}px) translate(-50%, -100%)`;
+    }
+  }
+
   byId(id) {
     return this.list.find((s) => s.id === id);
   }
@@ -56,8 +97,9 @@ export class Stations {
       if (d > st.reach) continue;
       const to = new THREE.Vector3(st.pos.x - camera.position.x, 0, st.pos.z - camera.position.z).normalize();
       const ang = Math.acos(THREE.MathUtils.clamp(to.dot(dir), -1, 1));
-      if (ang > 0.6) continue;
-      const score = ang * 2 + d * 0.4;
+      // in front of the camera, or right next to us whatever the camera is doing
+      if (ang > 0.95 && d > 1.5) continue;
+      const score = Math.min(ang, 0.95) * 2 + d * 0.4;
       if (score < bestScore) {
         bestScore = score;
         best = st;
@@ -200,7 +242,7 @@ export class Stations {
 // ---------------------------------------------------------------------------------------
 class Station {
   constructor(o) {
-    Object.assign(this, { reach: 2.3, verb: 'Use', cancellable: true, drivesLocomotion: false, cam: null }, o);
+    Object.assign(this, { reach: 2.8, verb: 'Use', cancellable: true, drivesLocomotion: false, cam: null }, o);
   }
   visible() {
     return true;
@@ -245,6 +287,7 @@ export class TreadmillStation extends Station {
   constructor() {
     super({
       id: 'treadmill',
+      title: 'Treadmill',
       prompt: 'Hop on the treadmill',
       verb: 'Run',
       pos: V(5.25, 1, 2.9),
@@ -294,6 +337,7 @@ export class RecordStation extends Station {
   constructor(room) {
     super({
       id: 'record',
+      title: 'Record player',
       verb: 'Play',
       pos: room.turntablePos.clone(),
       approach: { x: -0.85, z: -4.3 },
@@ -350,6 +394,7 @@ export class KaraokeStation extends Station {
     const c = room.stage.center;
     super({
       id: 'karaoke',
+      title: 'Karaoke stage',
       prompt: 'Step up to the mic',
       verb: 'Sing',
       pos: V(c.x, 1.3, c.z),
@@ -514,6 +559,7 @@ export class SketchStation extends Station {
   constructor() {
     super({
       id: 'sketch',
+      title: 'Drawing table',
       prompt: 'Sketch at the worktable',
       verb: 'Draw',
       pos: V(-4.2, 1.0, 4.4),
@@ -677,6 +723,7 @@ export class CoffeeStation extends Station {
   constructor(room) {
     super({
       id: 'coffee',
+      title: 'Espresso bar',
       prompt: 'Pull an espresso',
       verb: 'Brew',
       pos: room.coffeeBar.cupWorld.clone(),
@@ -768,6 +815,7 @@ export class DeskStation extends Station {
   constructor() {
     super({
       id: 'ship',
+      title: 'Desk · ship it',
       verb: 'Sit',
       pos: V(2.05, 1.15, -5.65),
       approach: { x: 2.1, z: -3.8 },
@@ -833,7 +881,7 @@ export class DeskStation extends Station {
 // ---------------- secrets ----------------
 export class DumbbellStation extends Station {
   constructor(room) {
-    super({ id: 'gains', prompt: 'Do some curls', verb: 'Lift', pos: V(3.7, 0.8, 1.7), approach: { x: 3.7, z: 2.95 }, use: { x: 3.7, z: 2.3, yaw: Math.PI } });
+    super({ id: 'gains', title: 'Dumbbells', prompt: 'Do some curls', verb: 'Lift', pos: V(3.7, 0.8, 1.7), approach: { x: 3.7, z: 2.95 }, use: { x: 3.7, z: 2.3, yaw: Math.PI } });
     this.bell = room.dumbbells.bells[1];
     this.home = this.bell.position.clone();
   }
@@ -890,7 +938,7 @@ export class DumbbellStation extends Station {
 
 export class NapStation extends Station {
   constructor() {
-    super({ id: 'nap', prompt: 'Take a power nap', verb: 'Nap', pos: V(3.4, 0.6, 5.45), approach: { x: 2.05, z: 4.72 }, use: { x: 3.1, z: 5.3, yaw: Math.PI }, cancellable: false });
+    super({ id: 'nap', title: 'Sofa', prompt: 'Take a power nap', verb: 'Nap', pos: V(3.4, 0.6, 5.45), approach: { x: 2.05, z: 4.72 }, use: { x: 3.1, z: 5.3, yaw: Math.PI }, cancellable: false });
   }
   begin() {
     const { avatar } = this.ctx;
@@ -926,7 +974,7 @@ export class NapStation extends Station {
 
 export class PlantStation extends Station {
   constructor(room) {
-    super({ id: 'monstera', prompt: 'Water the monstera', verb: 'Water', pos: V(6.55, 1.2, -4.4), approach: { x: 5.3, z: -3.4 }, use: { x: 5.72, z: -4.12, yaw: Math.PI / 2 }, cancellable: false });
+    super({ id: 'monstera', title: 'Monstera', prompt: 'Water the monstera', verb: 'Water', pos: V(6.55, 1.2, -4.4), approach: { x: 5.3, z: -3.4 }, use: { x: 5.72, z: -4.12, yaw: Math.PI / 2 }, cancellable: false });
     this.can = room.wateringCan;
     this.home = this.can.group.position.clone();
     this.plant = room.monstera;
@@ -983,7 +1031,7 @@ export class PlantStation extends Station {
 
 export class PartyStation extends Station {
   constructor() {
-    super({ id: 'party', verb: 'Flip', pos: V(SWITCH_POS.x + 0.05, 1.28, SWITCH_POS.z), approach: { x: SWITCH_POS.x - 0.1, z: SWITCH_POS.z + 1.3 }, use: { x: SWITCH_POS.x - 0.1, z: SWITCH_POS.z + 0.55, yaw: Math.PI }, cancellable: false, reach: 1.9 });
+    super({ id: 'party', title: 'Other switch', verb: 'Flip', pos: V(SWITCH_POS.x + 0.05, 1.28, SWITCH_POS.z), approach: { x: SWITCH_POS.x - 0.1, z: SWITCH_POS.z + 1.3 }, use: { x: SWITCH_POS.x - 0.1, z: SWITCH_POS.z + 0.55, yaw: Math.PI }, cancellable: false, reach: 1.9 });
   }
   promptText() {
     return this.ctx.room.party ? 'Flip the other switch (calm down)' : 'Flip the other switch';
@@ -1021,7 +1069,7 @@ export class PartyStation extends Station {
 
 export class BookStation extends Station {
   constructor() {
-    super({ id: 'bookworm', prompt: 'Read something', verb: 'Read', pos: V(5.7, 1.3, -5.78), approach: { x: 5.45, z: -4.35 }, use: { x: 5.45, z: -5.08, yaw: Math.PI } });
+    super({ id: 'bookworm', title: 'Bookshelf', prompt: 'Read something', verb: 'Read', pos: V(5.7, 1.3, -5.78), approach: { x: 5.45, z: -4.35 }, use: { x: 5.45, z: -5.08, yaw: Math.PI } });
     this.i = Math.floor(Math.random() * STORY.quotes.length);
   }
   begin() {

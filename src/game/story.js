@@ -45,6 +45,10 @@ export class Story {
     };
   }
 
+  get secretIds() {
+    return S.secrets.map((x) => x.id);
+  }
+
   get ready() {
     return this.sparks.size >= S.sparks.length;
   }
@@ -69,6 +73,8 @@ export class Story {
     this.render();
     this.addLog('flipped the lights on. The studio woke up. So did Bulb.');
     this.say(S.intro, false);
+    const touch = document.body.classList.contains('touch');
+    setTimeout(() => ui.toast(touch ? 'Walk up to anything with a <b>✦</b> label and tap the big button' : 'Walk up to anything with a <b>✦</b> label and press <b>Space</b> or <b>E</b>'), 1500);
   }
 
   clock(min = this.shown) {

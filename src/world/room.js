@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import * as TX from './textures.js';
 import { Screen } from './screens.js';
 import { projects } from '../content.js';
@@ -13,10 +14,18 @@ export const START = { x: -2.2, z: -4.35 };
 export const SWITCH_POS = new THREE.Vector3(-1.9, 1.28, -HZ + 0.02);
 
 const WARM = new THREE.Color('#ffc58a');
+const HERO_KEY = 14;
+const HERO_RIM = 9;
 
 // ---------- small builders ----------
-const std = (color, rough = 0.7, metal = 0, extra = {}) =>
-  new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: metal, ...extra });
+// Plain materials are cached by colour/finish so identical props can be merged into one draw call.
+const stdCache = new Map();
+const std = (color, rough = 0.7, metal = 0, extra = null) => {
+  if (extra) return new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: metal, ...extra });
+  const key = `${color}|${rough}|${metal}`;
+  if (!stdCache.has(key)) stdCache.set(key, new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: metal }));
+  return stdCache.get(key);
+};
 
 function mesh(geo, mat, parent, x = 0, y = 0, z = 0, { cast = true, receive = true } = {}) {
   const m = new THREE.Mesh(geo, mat);
@@ -100,6 +109,60 @@ export class Room {
     this.buildLedStrip();
     this.buildHangingCards();
     this.buildNeon();
+    this.optimize();
+  }
+
+  // Merge every static mesh that shares a material into one draw call. Anything that moves
+  // (frames, fans, records, cards, clock hands, the switch) is flagged dynamic and left alone.
+  optimize() {
+    const dynamic = [
+      this.switchRocker,
+      this.sculpture,
+      ...this.frames.map((f) => f.group),
+      ...this.spin.map((s) => s.obj),
+      ...this.sway.map((s) => s.holder),
+      ...(this.clockHands || []),
+    ];
+    dynamic.forEach((o) => o && (o.userData.dynamic = true));
+    this.group.updateMatrixWorld(true);
+    const buckets = new Map();
+    const victims = [];
+    const walk = (o) => {
+      if (o.userData.dynamic) return;
+      if (o.isMesh && !o.isInstancedMesh && !o.isSkinnedMesh && !Array.isArray(o.material)) {
+        const geo = o.geometry;
+        const key = [o.material.uuid, o.castShadow, o.receiveShadow, geo.index ? 1 : 0, Object.keys(geo.attributes).sort().join()].join('|');
+        if (!buckets.has(key)) buckets.set(key, { mat: o.material, cast: o.castShadow, receive: o.receiveShadow, geos: [] });
+        buckets.get(key).geos.push(geo.clone().applyMatrix4(o.matrixWorld));
+        victims.push(o);
+      }
+      o.children.forEach(walk);
+    };
+    walk(this.group);
+    let merged = 0;
+    for (const b of buckets.values()) {
+      if (b.geos.length < 2) {
+        b.geos.forEach((g) => g.dispose());
+        continue;
+      }
+      const geo = mergeGeometries(b.geos, false);
+      if (!geo) continue;
+      const m = new THREE.Mesh(geo, b.mat);
+      m.castShadow = b.cast;
+      m.receiveShadow = b.receive;
+      m.userData.merged = true;
+      this.group.add(m);
+      merged += b.geos.length;
+      b.geos.forEach((g) => g.dispose());
+      b.done = true;
+    }
+    // remove originals whose bucket actually merged
+    for (const o of victims) {
+      const geo = o.geometry;
+      const key = [o.material.uuid, o.castShadow, o.receiveShadow, geo.index ? 1 : 0, Object.keys(geo.attributes).sort().join()].join('|');
+      if (buckets.get(key).done) o.removeFromParent();
+    }
+    this.mergedCount = merged;
   }
 
   collider(cx, cz, w, d, pad = 0) {
@@ -182,10 +245,14 @@ export class Room {
     s.add(this.screenGlow);
 
     // Faint top light so the character reads in the dark before the switch.
-    this.heroLight = new THREE.SpotLight('#9fb4ff', 0, 7, 0.36, 0.8, 1.2);
+    this.heroLight = new THREE.SpotLight('#c9d4ff', 0, 7, 0.42, 0.75, 1.1);
     this.heroLight.position.set(START.x + 0.4, 4.0, START.z + 1.6);
     this.heroLight.target.position.set(START.x, 1.0, START.z);
     s.add(this.heroLight, this.heroLight.target);
+    // Cool rim from behind so the silhouette separates from the black room.
+    this.heroRim = new THREE.SpotLight('#8fa8ff', 0, 6, 0.5, 0.9, 1.1);
+    this.heroRim.target = this.heroLight.target;
+    s.add(this.heroRim);
   }
 
   // ---------------- back wall: door, switchboard, bookshelf ----------------
@@ -1192,7 +1259,8 @@ export class Room {
     this.neonMat.color.setScalar(neon * 1.4);
     this.cardMats.forEach((m, i) => (m.emissiveIntensity = ease(2.2 + i * 0.07, 2.8 + i * 0.07) * 0.12));
 
-    this.heroLight.intensity = 6 * (1 - ease(0.4, 2.0));
+    this.heroLight.intensity = HERO_KEY * (1 - ease(0.4, 2.0));
+    this.heroRim.intensity = HERO_RIM * (1 - ease(0.4, 1.6));
     if (this.scene.fog) {
       const f = ease(0.2, 2.6);
       this.scene.fog.near = 2.6 + f * 60;
@@ -1226,7 +1294,8 @@ export class Room {
   setDark() {
     this.hemi.intensity = 0;
     this.scene.environmentIntensity = 0.0;
-    this.heroLight.intensity = 6;
+    this.heroLight.intensity = HERO_KEY;
+    this.heroRim.intensity = HERO_RIM;
     // Black fog swallows everything a few metres past the character until the lights come on.
     this.scene.fog = new THREE.Fog('#050507', 2.6, 5.2);
   }

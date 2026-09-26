@@ -167,6 +167,10 @@ export class Intro {
     const hl = this.room.heroLight;
     hl.position.set(x + 0.5, 4.0, z + 1.3);
     hl.target.position.set(x, 1.0, z);
+    // rim sits on the far side of the character from the camera
+    const cp = this.camera.position;
+    const away = new THREE.Vector3(x - cp.x, 0, z - cp.z).normalize();
+    this.room.heroRim.position.set(x + away.x * 1.6, 3.2, z + away.z * 1.6);
 
     // camera
     const t = this.curveT(p);

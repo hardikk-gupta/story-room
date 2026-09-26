@@ -443,8 +443,11 @@ body.touch #crosshair {
 }
 
 @media (max-width: 760px), (max-height: 520px) {
-  .intro-side { width: 42vw; }
-  #intro h1 { font-size: clamp(30px, 8vw, 48px); }
+  .intro-side { width: 30vw; }
+  #intro h1 { font-size: clamp(26px, 4.6vw, 44px); margin-bottom: 10px; }
+  .eyebrow { font-size: 10px; margin-bottom: 8px; }
+  .role, .welcome { font-size: 12px; }
+  .lede { font-size: 12.5px; margin-bottom: 10px; }
   #inspect figure { gap: 16px; }
   #inspect img { max-width: 58vw; max-height: 72vh; }
   #inspect figcaption { width: 34vw; }

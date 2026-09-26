@@ -121,6 +121,12 @@ export class Avatar {
     this.lookYaw = 0; // desired, relative to body
     this.lookPitch = 0;
     this.turnShuffle = 0; // 0..1 extra step blend while turning in place
+    this.sit = 0; // 0..1 seated pose
+    this.seatHeight = 0.5;
+    this.groove = 0; // 0..1 dancing to the beat
+    this.beatPhase = 0;
+    this.jitter = 0; // caffeine
+    this.hipsRestY = this.bones.get('Hips').getWorldPosition(new THREE.Vector3()).y;
   }
 
   // Find the key moments inside one-off clips by sampling them on this skeleton.
@@ -238,6 +244,22 @@ export class Avatar {
     if (this.lean) rotateWorld(hips, this.forwardAxis(), this.lean);
     if (this.forwardLean) rotateWorld(spine, right, this.forwardLean);
 
+    // procedural layers on top of the clips
+    const fwd = this.forwardAxis();
+    const upV = new THREE.Vector3(0, 1, 0);
+    if (this.sit > 0.001) this.applySit(this.sit, fwd);
+    else this.model.position.set(0, 0, 0);
+    if (this.groove > 0.001) {
+      // dance to the beat: hip sway on the bar, head nod on every beat
+      const b = this.beatPhase || 0;
+      rotateWorld(hips, upV, Math.sin(b * Math.PI) * 0.1 * this.groove);
+      rotateWorld(spine, fwd, Math.sin(b * Math.PI) * 0.05 * this.groove);
+      rotateWorld(this.bones.get('Head'), right, -Math.abs(Math.sin(b * Math.PI * 2)) * 0.14 * this.groove);
+    }
+    if (this.jitter > 0.001) {
+      rotateWorld(this.bones.get('Head'), upV, (Math.random() - 0.5) * 0.05 * this.jitter);
+    }
+
     // head look (limited, eased)
     this.headYaw = damp(this.headYaw, THREE.MathUtils.clamp(this.lookYaw, -0.9, 0.9), 5, dt);
     this.headPitch = damp(this.headPitch, THREE.MathUtils.clamp(this.lookPitch, -0.5, 0.4), 5, dt);
@@ -254,6 +276,24 @@ export class Avatar {
       this.aim[side].apply();
       this.fingers(side);
     }
+  }
+
+  // Seated pose built from the standing clip: drop and push back the whole model, swing the
+  // thighs forward, bring the shins back down, lean the torso in a touch.
+  applySit(w, fwd) {
+    const seat = this.seatHeight || 0.5;
+    const hipsRest = this.hipsRestY;
+    this.model.position.set(0, -(hipsRest - seat - 0.06) * w, -0.1 * w);
+    this.model.updateMatrixWorld(true);
+    const down = new THREE.Vector3(0, -1, 0);
+    const axis = new THREE.Vector3().crossVectors(down, fwd).normalize();
+    for (const side of ['Left', 'Right']) {
+      rotateWorld(this.bones.get(`${side}UpLeg`), axis, 1.5 * w);
+      rotateWorld(this.bones.get(`${side}Leg`), axis, -1.45 * w);
+      rotateWorld(this.bones.get(`${side}Foot`), axis, 0.1 * w);
+    }
+    const lean = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), fwd).normalize();
+    rotateWorld(this.bones.get('Spine'), lean, 0.12 * w * (this.sitLean ?? 1));
   }
 
   forwardAxis() {

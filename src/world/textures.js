@@ -188,53 +188,69 @@ export function projectCover(project, index) {
 }
 
 // The painted "window" scenery on the right wall: a warm valley at dusk.
-export function scenery() {
+// The window view. 'night' (moon, stars, city awake) and 'sunrise' are cross-faded as the
+// story's clock moves from 2 AM to 7 AM.
+export function scenery(mode = 'sunrise') {
   const [c, g] = canvas(2048, 1024);
   const r = rng(21);
-  const sky = g.createLinearGradient(0, 0, 0, 700);
-  sky.addColorStop(0, '#1d2b53');
-  sky.addColorStop(0.45, '#7e4a7e');
-  sky.addColorStop(0.75, '#f08a5d');
-  sky.addColorStop(1, '#ffd9a0');
+  const night = mode === 'night';
+  const sky = g.createLinearGradient(0, 0, 0, 760);
+  if (night) {
+    sky.addColorStop(0, '#05081a');
+    sky.addColorStop(0.6, '#101a3f');
+    sky.addColorStop(1, '#1f2a55');
+  } else {
+    sky.addColorStop(0, '#3a5a9c');
+    sky.addColorStop(0.4, '#c77aa0');
+    sky.addColorStop(0.72, '#ff9a5e');
+    sky.addColorStop(1, '#ffe2a8');
+  }
   g.fillStyle = sky;
   g.fillRect(0, 0, 2048, 1024);
-  // sun
-  const sun = g.createRadialGradient(1300, 620, 10, 1300, 620, 260);
-  sun.addColorStop(0, 'rgba(255,245,220,1)');
-  sun.addColorStop(0.2, 'rgba(255,210,150,0.9)');
-  sun.addColorStop(1, 'rgba(255,170,100,0)');
-  g.fillStyle = sun;
-  g.fillRect(0, 0, 2048, 1024);
-  // stars
-  for (let i = 0; i < 160; i++) {
-    g.fillStyle = `rgba(255,255,255,${r() * 0.7})`;
-    g.fillRect(r() * 2048, r() * 260, 2, 2);
+  if (night) {
+    const moon = g.createRadialGradient(560, 220, 4, 560, 220, 150);
+    moon.addColorStop(0, 'rgba(255,250,235,1)');
+    moon.addColorStop(0.28, 'rgba(240,240,255,0.95)');
+    moon.addColorStop(0.32, 'rgba(180,200,255,0.25)');
+    moon.addColorStop(1, 'rgba(120,140,220,0)');
+    g.fillStyle = moon;
+    g.fillRect(0, 0, 2048, 1024);
+    for (let i = 0; i < 520; i++) {
+      g.fillStyle = `rgba(255,255,255,${0.2 + r() * 0.8})`;
+      const s = r() < 0.08 ? 3 : 1.6;
+      g.fillRect(r() * 2048, r() * 620, s, s);
+    }
+  } else {
+    const sun = g.createRadialGradient(1300, 600, 10, 1300, 600, 300);
+    sun.addColorStop(0, 'rgba(255,250,225,1)');
+    sun.addColorStop(0.2, 'rgba(255,215,150,0.95)');
+    sun.addColorStop(1, 'rgba(255,170,100,0)');
+    g.fillStyle = sun;
+    g.fillRect(0, 0, 2048, 1024);
+    for (let i = 0; i < 40; i++) {
+      g.fillStyle = `rgba(255,255,255,${r() * 0.4})`;
+      g.fillRect(r() * 2048, r() * 200, 2, 2);
+    }
   }
-  const layers = [
-    ['#5b3a5e', 560, 120],
-    ['#3f2a4a', 640, 90],
-    ['#2a1d36', 720, 70],
-    ['#170f22', 820, 50],
-  ];
+  const layers = night
+    ? [['#141a38', 560, 120], ['#0f1430', 640, 90], ['#0a0e24', 720, 70], ['#05070f', 820, 50]]
+    : [['#7a4d6e', 560, 120], ['#583a5a', 640, 90], ['#3a2743', 720, 70], ['#1f1528', 820, 50]];
   layers.forEach(([col, base, amp], li) => {
     g.fillStyle = col;
     g.beginPath();
     g.moveTo(0, 1024);
     for (let x = 0; x <= 2048; x += 16) {
-      const y =
-        base -
-        Math.sin(x * 0.002 + li * 1.7) * amp -
-        Math.sin(x * 0.007 + li) * amp * 0.35 -
-        r() * 6;
+      const y = base - Math.sin(x * 0.002 + li * 1.7) * amp - Math.sin(x * 0.007 + li) * amp * 0.35 - r() * 6;
       g.lineTo(x, y);
     }
     g.lineTo(2048, 1024);
     g.fill();
   });
-  // city lights on the last ridge
-  for (let i = 0; i < 260; i++) {
-    g.fillStyle = `rgba(255,${190 + r() * 60},${120 + r() * 60},${0.4 + r() * 0.6})`;
-    g.fillRect(r() * 2048, 860 + r() * 160, 2 + r() * 2, 2);
+  // city lights on the last ridge: blazing at night, fading at dawn
+  const n = night ? 700 : 160;
+  for (let i = 0; i < n; i++) {
+    g.fillStyle = `rgba(255,${190 + r() * 60},${120 + r() * 60},${(night ? 0.6 : 0.3) + r() * 0.4})`;
+    g.fillRect(r() * 2048, 850 + r() * 170, 2 + r() * 2, 2);
   }
   return toTexture(c, { repeat: [1, 1] });
 }

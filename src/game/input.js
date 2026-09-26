@@ -10,7 +10,8 @@ export class Input {
     this.enabled = false;
     this.locked = false;
     this.touch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
-    this.handlers = { action: [], anyKey: [], lock: [] };
+    this.handlers = { action: [], anyKey: [], lock: [], cancel: [], release: [] };
+    this.actionHeld = false;
     this.joy = { id: null, x: 0, y: 0 };
 
     addEventListener('keydown', (e) => this.onKey(e, true));
@@ -55,9 +56,18 @@ export class Input {
   onKey(e, down) {
     const k = e.code;
     const gameKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'];
+    // typing into a form field (e.g. none today, but future-proof) shouldn't drive the game
+    if (e.target && /INPUT|TEXTAREA/.test(e.target.tagName)) return;
     if (down) {
       this.handlers.anyKey.forEach((f) => f(k, e));
-      if (k === 'Space' && !e.repeat) this.handlers.action.forEach((f) => f());
+      if (k === 'Space' && !e.repeat) {
+        this.actionHeld = true;
+        this.handlers.action.forEach((f) => f());
+      }
+      if ((k === 'Escape' || k === 'KeyQ') && !e.repeat) this.handlers.cancel.forEach((f) => f());
+    } else if (k === 'Space') {
+      this.actionHeld = false;
+      this.handlers.release.forEach((f) => f());
     }
     if (!this.enabled) return;
     if (gameKeys.includes(k)) e.preventDefault();
@@ -124,10 +134,19 @@ export class Input {
       this.runToggle = !this.runToggle;
       runBtn.setAttribute('aria-pressed', String(this.runToggle));
     }, { passive: false });
-    document.getElementById('btn-action').addEventListener('touchstart', (e) => {
+    const act = document.getElementById('btn-action');
+    act.addEventListener('touchstart', (e) => {
       e.preventDefault();
+      this.actionHeld = true;
       this.handlers.action.forEach((f) => f());
     }, { passive: false });
+    const rel = (e) => {
+      e.preventDefault();
+      this.actionHeld = false;
+      this.handlers.release.forEach((f) => f());
+    };
+    act.addEventListener('touchend', rel, { passive: false });
+    act.addEventListener('touchcancel', rel, { passive: false });
   }
 
   updateJoy(t, R, setKnob) {

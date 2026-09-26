@@ -91,6 +91,90 @@
       </figure>
     </div>
 
+
+    <!-- ================= NIGHT SHIFT UI ================= -->
+    <aside id="quest" hidden>
+      <header>
+        <p class="q-eyebrow">Night Shift</p>
+        <p class="q-clock"><span id="q-time">02:00</span><small id="q-ampm">AM</small></p>
+      </header>
+      <p class="q-sub">Sparks <b id="q-count">0/6</b> · pitch at 7 AM</p>
+      <ol id="q-list"></ol>
+      <p class="q-secrets">Secrets <b id="q-secrets">0/5</b></p>
+      <div class="q-actions">
+        <button id="q-toggle" class="q-btn" type="button">Hide</button>
+        <button id="q-portfolio" class="q-btn" type="button">Skip to portfolio →</button>
+      </div>
+    </aside>
+
+    <div id="bubble" hidden><p id="bubble-text"></p><span class="bubble-name">Bulb</span></div>
+    <div id="toasts" aria-live="polite"></div>
+
+    <div id="station-hud" hidden>
+      <div class="sh-main">
+        <p class="sh-title" id="sh-title"></p>
+        <p class="sh-body" id="sh-body"></p>
+        <p class="sh-hint" id="sh-hint"></p>
+      </div>
+      <button id="sh-leave" class="pill" type="button">Leave ✕</button>
+    </div>
+
+    <section id="karaoke" class="overlay" hidden>
+      <div class="k-top">
+        <p class="k-song" id="k-song"></p>
+        <p class="k-score"><span id="k-score">0</span> pts · combo <span id="k-combo">0</span></p>
+      </div>
+      <div class="k-lane" id="k-lane"><div class="k-hit"></div><p class="k-judge" id="k-judge"></p></div>
+      <p class="k-lyrics" id="k-lyrics"></p>
+      <p class="k-hint"><span class="hint-desktop">Press <kbd>Space</kbd> when a word hits the circle</span><span class="hint-touch">Tap <b>Sing!</b> when a word hits the circle</span></p>
+      <div class="k-result" id="k-result" hidden></div>
+    </section>
+
+    <section id="sketch" class="overlay" hidden>
+      <div class="sk-card">
+        <header>
+          <h2>Sketch the big idea</h2>
+          <p>Draw it, write it, or just draw a cat. It goes on the pinboard.</p>
+        </header>
+        <canvas id="sk-canvas" width="880" height="620"></canvas>
+        <div class="sk-tools">
+          <div class="sk-colors" id="sk-colors"></div>
+          <div class="sk-sizes" id="sk-sizes"></div>
+          <button type="button" class="q-btn" id="sk-undo">Undo</button>
+          <button type="button" class="q-btn" id="sk-clear">Clear</button>
+          <span class="sk-spacer"></span>
+          <button type="button" class="q-btn" id="sk-cancel">Cancel</button>
+          <button type="button" class="q-btn primary" id="sk-pin">Pin it up ✦</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="brew" class="overlay" hidden>
+      <div class="brew-card">
+        <p class="brew-title">Pull the perfect shot</p>
+        <div class="brew-gauge"><div class="brew-zone"></div><div class="brew-fill" id="brew-fill"></div><div class="brew-line"></div></div>
+        <p class="brew-msg" id="brew-msg">Hold <kbd>Space</kbd>. Let go in the gold zone.</p>
+      </div>
+    </section>
+
+    <section id="quote" class="overlay" hidden>
+      <blockquote id="quote-text"></blockquote>
+      <p class="k-hint"><span class="hint-desktop">Press <kbd>Space</kbd> to put the book back</span><span class="hint-touch">Tap <b>Close</b></span></p>
+    </section>
+
+    <div id="nap" hidden><p>z<span>z</span><span>z</span></p></div>
+    <canvas id="confetti" hidden></canvas>
+
+    <section id="pitchos" hidden>
+      <div class="os-bar">
+        <span class="os-logo">◐ PitchOS</span>
+        <nav id="os-tabs"></nav>
+        <span class="os-clock" id="os-clock"></span>
+        <button id="os-close" class="os-x" type="button" aria-label="Close">✕</button>
+      </div>
+      <div class="os-body" id="os-body"></div>
+    </section>
+
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

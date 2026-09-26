@@ -56,6 +56,7 @@ export class Interactor {
         best = f;
       }
     }
+    this.bestScore = bestScore;
     return best;
   }
 
@@ -136,6 +137,7 @@ export class Interactor {
     overlay.hidden = false;
     requestAnimationFrame(() => overlay.classList.add('open'));
     this.sfx && this.sfx.event('open');
+    this.onInspect && this.onInspect(this.active.index);
     if (document.pointerLockElement) document.exitPointerLock();
   }
 
@@ -147,11 +149,9 @@ export class Interactor {
     }, 450);
   }
 
+  // Focus (and the on-screen prompt) is arbitrated by main.js against the other stations.
   setFocus(f) {
-    if (this.focus === f) return;
     this.focus = f;
-    this.els.prompt.hidden = !f;
-    this.els.crosshair.classList.toggle('active', !!f);
   }
 
   update(dt) {
@@ -171,12 +171,7 @@ export class Interactor {
       if (f !== this.active) f.group.position.copy(f.wallPos).addScaledVector(f.normal, f.hl * 0.025);
     }
 
-    if (this.state === 'free') {
-      this.setFocus(this.findFocus());
-      els.action.disabled = !this.focus;
-      els.action.textContent = 'Grab';
-      return;
-    }
+    if (this.state === 'free') return;
     els.action.disabled = this.state !== 'inspect';
     els.action.textContent = 'Put back';
 

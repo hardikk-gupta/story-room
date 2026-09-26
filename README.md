@@ -8,6 +8,29 @@ them full screen.
 Built with [three.js](https://threejs.org) and [Vite](https://vitejs.dev). No framework,
 no backend. It's a static site.
 
+## Night Shift: the story
+
+After the lights come on, **Bulb** (a lightbulb that gained consciousness when you hit the
+switch) wakes up. It's 2 AM, the big pitch is at 7 AM, and the deck is blank. The studio
+runs on **Sparks**: collect six and the deck builds itself. Every spark moves the clock
+toward morning, and the window slowly turns from night to sunrise.
+
+| Spark | Station | What you do |
+|---|---|---|
+| Body before brush | Treadmill (by the window) | Hold ↑ to run 100 m. The belt moves and the console tracks distance |
+| Drop the needle | Turntable (cube shelf) | The character drops the needle; generated music plays, a disco ball descends, LEDs chase the beat |
+| Sing to the neon | Karaoke stage | Rhythm game: hit Space as words reach the circle; the character sings in a robot voice. Rank S–C |
+| Sketch the big idea | Worktable | Draw on a real canvas; it gets pinned to the 3D pinboard and stays there next visit |
+| Brew the fuel | Espresso bar | Hold to pour, release in the gold zone. Reward: +40% run speed and caffeine jitters |
+| Study your past lives | Gallery wall | Pick up three project frames |
+| **Ship it** | Desk | Sit down; the computer opens **PitchOS**: about, work, contact, and a log of everything the visitor did tonight. Ship → confetti, sunrise |
+
+**Secrets (5):** 10 dumbbell curls, a power nap on the sofa, watering the monstera
+(it grows), the second light switch (party mode), and reading from the bookshelf.
+
+Visitors who just want the portfolio can hit **Skip to portfolio** in the quest panel.
+All story text, lyrics and PitchOS content live in `src/content.js`.
+
 ## Run it
 
 ```bash
@@ -50,7 +73,8 @@ replace `avatar.glb` without re-exporting animations.
 | Move | Arrow keys / WASD | Left joystick |
 | Run | Shift | Run button, or push the joystick to the edge |
 | Look | Click, then move the mouse / trackpad (Esc releases) | Drag anywhere |
-| Pick up / put back | Space | Grab / Put back button |
+| Interact (stations, frames) | Space | Action button (label changes) |
+| Leave a station | Esc / Q, or the Leave button | Leave button |
 
 Walking backwards (↓ / S) backpedals while still facing forward. In portrait, phones are
 asked to rotate before the game starts.
@@ -61,18 +85,25 @@ asked to rotate before the game starts.
 src/
   main.js              renderer, bloom, loading, the intro → handover → play state machine
   content.js           your copy and projects
-  audio.js             synthesised sound (switch, lights, hum, boot chime, footsteps)
+  audio.js             synthesised sound effects + a live music sequencer (3 tracks) and robot singer
+  ui.js                DOM helpers: prompts, HUD, toasts, confetti
   character/
     avatar.js          animation blending, stride-locked foot sync, lean, head look, finger poses
     retarget.js        Mixamo → avatar retargeting (world-space delta from T-pose)
     ik.js              two-bone arm IK + hand aiming (switch press, gripping frames)
   game/
+    stations.js        every interactive station + the shared walk-up/glide-in choreography
+    story.js           sparks, secrets, clock, sunrise, quest panel, waypoint, night log
+    companion.js       Bulb: the floating, talking lightbulb
+    pitchos.js         the desk computer: portfolio + tonight's recap + ship button
     intro.js           scroll-scrubbed opening sequence and camera path
     player.js          movement, collision, third-person camera
     interact.js        pick up / inspect / hang back
     input.js           keyboard, pointer lock, touch joystick
   world/
-    room.js            the studio, its lights and the power-on sequence
+    room.js            the studio, its lights, the power-on sequence, party mode, sunrise
+    props.js           treadmill, stage, disco ball, espresso bar, dumbbells, spark comets
+    kit.js             shared builders and materials
     screens.js         monitor/laptop displays that boot up
     textures.js        procedural wood, plaster, rugs, covers, scenery
 scripts/slim-idle.mjs  strips a glTF to skeleton + chosen animations

@@ -81,9 +81,13 @@ export class Player {
     this.vel.x = damp(this.vel.x, tx, accel, dt);
     this.vel.y = damp(this.vel.y, tz, accel, dt);
 
-    this.pos.x += this.vel.x * dt;
-    this.pos.z += this.vel.y * dt;
-    this.collide();
+    if (!this.pinned) {
+      this.pos.x += this.vel.x * dt;
+      this.pos.z += this.vel.y * dt;
+      this.collide();
+      const fy = this.floor ? this.floor(this.pos.x, this.pos.z) : 0;
+      this.pos.y += (fy - this.pos.y) * (1 - Math.exp(-14 * dt));
+    }
 
     const v = this.vel.length();
     const prevYaw = this.yaw;

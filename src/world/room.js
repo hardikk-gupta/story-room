@@ -6,7 +6,6 @@ import { Screen } from './screens.js';
 import { projects } from '../content.js';
 
 // Room extents (meters). x: left(-) → right(+), z: back wall(-) → front wall(+).
-export const ROOM = { w: 14, d: 12, h: 4.2 };
 const HX = ROOM.w / 2;
 const HZ = ROOM.d / 2;
 
@@ -15,67 +14,14 @@ export const SWITCH_POS = new THREE.Vector3(-1.9, 1.28, -HZ + 0.02);
 
 const WARM = new THREE.Color('#ffc58a');
 const HERO_KEY = 14;
+const NIGHT_SUN = new THREE.Color('#8fa8ff');
+const DAY_SUN = new THREE.Color('#ffb38a');
 const HERO_RIM = 9;
 
-// ---------- small builders ----------
-// Plain materials are cached by colour/finish so identical props can be merged into one draw call.
-const stdCache = new Map();
-const std = (color, rough = 0.7, metal = 0, extra = null) => {
-  if (extra) return new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: metal, ...extra });
-  const key = `${color}|${rough}|${metal}`;
-  if (!stdCache.has(key)) stdCache.set(key, new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: metal }));
-  return stdCache.get(key);
-};
+import { std, mesh, box, rbox, cyl, M, initMaterials, ROOM } from './kit.js';
+import { buildTreadmill, buildDumbbells, buildStage, buildDisco, buildCoffeeBar, buildWateringCan } from './props.js';
 
-function mesh(geo, mat, parent, x = 0, y = 0, z = 0, { cast = true, receive = true } = {}) {
-  const m = new THREE.Mesh(geo, mat);
-  m.position.set(x, y, z);
-  m.castShadow = cast;
-  m.receiveShadow = receive;
-  parent.add(m);
-  return m;
-}
-const box = (w, h, d, mat, parent, x, y, z, opts) => mesh(new THREE.BoxGeometry(w, h, d), mat, parent, x, y, z, opts);
-const rbox = (w, h, d, r, mat, parent, x, y, z, opts) =>
-  mesh(new RoundedBoxGeometry(w, h, d, 3, r), mat, parent, x, y, z, opts);
-const cyl = (rt, rb, h, mat, parent, x, y, z, seg = 20, opts) =>
-  mesh(new THREE.CylinderGeometry(rt, rb, h, seg), mat, parent, x, y, z, opts);
-
-// Materials shared across the room.
-const M = {};
-function initMaterials() {
-  M.floor = std('#ffffff', 0.55, 0, { map: TX.woodFloor() });
-  // Each wall its own colour: deep green behind the setup, terracotta around the window,
-  // navy at the front, charcoal for the gallery so the artwork pops.
-  M.wallBack = std('#ffffff', 0.9, 0, { map: TX.plaster([38, 74, 64], 3) });
-  M.wallRight = std('#ffffff', 0.9, 0, { map: TX.plaster([168, 84, 52], 8) });
-  M.wallFront = std('#ffffff', 0.9, 0, { map: TX.plaster([40, 54, 84], 9) });
-  M.wallAccent = std('#ffffff', 0.92, 0, { map: TX.plaster([46, 47, 53], 4) });
-  M.ceiling = std('#1c1d22', 0.95);
-  M.trim = std('#16171b', 0.6);
-  M.oak = std('#b98a5e', 0.55);
-  M.walnut = std('#5a3b27', 0.5);
-  M.black = std('#141418', 0.45, 0.2);
-  M.blackMatte = std('#1b1c20', 0.85);
-  M.metal = std('#9aa0a8', 0.3, 0.9);
-  M.darkMetal = std('#2b2d33', 0.35, 0.8);
-  M.white = std('#e9e6df', 0.5);
-  M.fabric = std('#ffffff', 0.95, 0, { map: TX.fabric('#3c4252', 5) });
-  M.fabricWarm = std('#ffffff', 0.95, 0, { map: TX.fabric('#8a5a44', 6) });
-  M.rug = std('#ffffff', 1, 0, { map: TX.rug() });
-  M.leaf = std('#3e6b3a', 0.7, 0, { side: THREE.DoubleSide });
-  M.pot = std('#c9b8a3', 0.8);
-  M.glass = new THREE.MeshPhysicalMaterial({
-    color: '#aab4c0',
-    roughness: 0.05,
-    metalness: 0,
-    transmission: 0,
-    transparent: true,
-    opacity: 0.18,
-  });
-  M.cable = std('#101012', 0.6);
-  M.bezel = std('#0c0c0e', 0.4, 0.3);
-}
+export { ROOM };
 
 // ---------- the room ----------
 export class Room {
@@ -92,6 +38,7 @@ export class Room {
     this.spin = []; // things that rotate once powered (fans, record)
     this.sway = []; // hanging cards
     this.power = 0; // 0..1 overall
+    this.party = false;
     this.powered = false;
     this.events = [];
     this.clock = 0;
@@ -109,6 +56,12 @@ export class Room {
     this.buildLedStrip();
     this.buildHangingCards();
     this.buildNeon();
+    this.treadmill = buildTreadmill(this);
+    this.dumbbells = buildDumbbells(this);
+    this.stage = buildStage(this);
+    this.disco = buildDisco(this);
+    this.coffeeBar = buildCoffeeBar(this);
+    this.wateringCan = buildWateringCan(this);
     this.optimize();
   }
 
@@ -122,6 +75,11 @@ export class Room {
       ...this.spin.map((s) => s.obj),
       ...this.sway.map((s) => s.holder),
       ...(this.clockHands || []),
+      this.monstera,
+      this.deskChair,
+      this.partySwitch,
+      this.tonearm,
+      this.wateringCan && this.wateringCan.group,
     ];
     dynamic.forEach((o) => o && (o.userData.dynamic = true));
     this.group.updateMatrixWorld(true);
@@ -240,9 +198,9 @@ export class Room {
     s.add(this.galleryLight, this.galleryLight.target);
 
     // Monitor glow on the desk / face.
+    // (kept as an object so the power sequence can drive it, but not added: the RGB bias
+    // light behind the monitors already lights the desk)
     this.screenGlow = new THREE.PointLight('#8fb4ff', 0, 4, 1.6);
-    this.screenGlow.position.set(2.1, 1.2, -4.95);
-    s.add(this.screenGlow);
 
     // Faint top light so the character reads in the dark before the switch.
     this.heroLight = new THREE.SpotLight('#c9d4ff', 0, 7, 0.42, 0.75, 1.1);
@@ -274,6 +232,7 @@ export class Room {
     g.add(this.switchRocker);
     const rocker2 = rbox(0.07, 0.1, 0.018, 0.006, std('#f2efe8', 0.4), g, SWITCH_POS.x + 0.05, SWITCH_POS.y, -HZ + 0.026);
     rocker2.rotation.x = 0.16;
+    this.partySwitch = rocker2;
     // tiny indicator LED that glows in the dark, so the switch is findable
     this.switchLed = new THREE.MeshBasicMaterial({ color: '#ff7a3d', toneMapped: false });
     mesh(new THREE.SphereGeometry(0.006, 8, 8), this.switchLed, g, SWITCH_POS.x - 0.05, SWITCH_POS.y + 0.068, -HZ + 0.03, { cast: false });
@@ -496,7 +455,7 @@ export class Room {
     }
     this.collider(DX + 1.52, DZ + 0.02, 0.26, 0.5);
 
-    this.chair(desk, -0.1, 0.9, Math.PI + 0.15);
+    this.deskChair = this.chair(desk, -0.1, 0.9, Math.PI + 0.15);
     this.collider(DX - 0.1, DZ + 0.9, 0.62, 0.62);
 
     const cable = (pts, mat = M.cable) => {
@@ -514,7 +473,7 @@ export class Room {
     box(1.3, 0.012, 0.01, this.biasMat, g, DX + 0.05, 1.02, -HZ + 0.012, { cast: false });
     this.biasLight = new THREE.PointLight('#7b61ff', 0, 2.6, 1.4);
     this.biasLight.position.set(DX + 0.05, 1.15, -HZ + 0.18);
-    this.scene.add(this.biasLight);
+    if (this.quality === 'high') this.scene.add(this.biasLight);
   }
 
   // ---------------- the setup wall: pegboard, kallax, floating shelves, string lights ----------------
@@ -636,7 +595,16 @@ export class Room {
     kal.add(record);
     cyl(0.14, 0.14, 0.006, std('#111', 0.3, 0.3), record, 0, 0, 0, 40);
     cyl(0.045, 0.045, 0.008, std('#f72585', 0.6), record, 0, 0.001, 0, 20);
-    this.spin.push({ obj: record, axis: 'y', speed: 3.5 });
+    this.spin.push({ obj: record, axis: 'y', speed: 3.5, music: true });
+    const arm = new THREE.Group();
+    arm.position.set(-0.4 + 0.15, W + 0.11, -0.1);
+    kal.add(arm);
+    cyl(0.012, 0.012, 0.03, M.metal, arm, 0, 0, 0);
+    const armBar = box(0.008, 0.008, 0.2, M.metal, arm, 0, 0.018, 0.09);
+    box(0.02, 0.01, 0.03, M.black, arm, 0, 0.012, 0.19);
+    arm.rotation.y = 0.5; // parked
+    this.tonearm = arm;
+    this.turntablePos = new THREE.Vector3(kx - 0.4, W + 0.12, wz + 0.2);
     this.plant(kal, 0.55, W + 0.02, 0, 0.6);
     this.lava = new THREE.MeshBasicMaterial({ color: '#000', toneMapped: false });
     cyl(0.05, 0.08, 0.1, M.darkMetal, kal, 0.12, W + 0.07, 0);
@@ -751,6 +719,7 @@ export class Room {
       box(0.04, 0.2, 0.04, M.darkMetal, c, s * 0.26, 0.56, -0.02);
       rbox(0.06, 0.03, 0.26, 0.01, M.blackMatte, c, s * 0.26, 0.67, 0.0);
     }
+    return c;
   }
 
   // ---------------- left wall: project gallery ----------------
@@ -844,10 +813,15 @@ export class Room {
     const x = HX - 0.02;
     const W = 7.4;
     const H = 2.5;
-    this.sceneryMat = new THREE.MeshBasicMaterial({ map: TX.scenery(), toneMapped: true });
+    this.sceneryMat = new THREE.MeshBasicMaterial({ map: TX.scenery('night'), toneMapped: true });
     this.sceneryMat.color.setScalar(0.04);
     const view = mesh(new THREE.PlaneGeometry(W, H), this.sceneryMat, g, x, 2.05, 0, { cast: false, receive: false });
     view.rotation.y = -Math.PI / 2;
+    // sunrise layer on top, faded in by the story clock
+    this.dawnMat = new THREE.MeshBasicMaterial({ map: TX.scenery('sunrise'), transparent: true, opacity: 0, depthWrite: false });
+    const dawn = mesh(new THREE.PlaneGeometry(W, H), this.dawnMat, g, x - 0.004, 2.05, 0, { cast: false, receive: false });
+    dawn.rotation.y = -Math.PI / 2;
+    this.dawn = 0;
     // window frame + mullions
     const fm = M.black;
     box(0.08, 0.08, W + 0.1, fm, g, x - 0.04, 2.05 + H / 2, 0);
@@ -880,7 +854,7 @@ export class Room {
     mesh(new THREE.TorusGeometry(0.1, 0.03, 16, 40), std('#ffb46b', 0.25, 0.8), cred, 0, 0.73, 0.55).rotation.y = Math.PI / 2;
 
     // tall floor plants on both sides of the window
-    this.plant(g, HX - 0.45, 0, -4.4, 2.2);
+    this.monstera = this.plant(g, HX - 0.45, 0, -4.4, 2.2);
     this.plant(g, HX - 0.45, 0, 4.2, 2.0);
     this.collider(HX - 0.45, -4.4, 0.5, 0.5);
     this.collider(HX - 0.45, 4.2, 0.5, 0.5);
@@ -905,7 +879,7 @@ export class Room {
 
     // coffee table
     const tx = sx;
-    const tz = HZ - 1.75;
+    const tz = HZ - 2.1;
     cyl(0.5, 0.5, 0.04, M.oak, g, tx, 0.38, tz, 40);
     cyl(0.04, 0.04, 0.36, M.black, g, tx, 0.18, tz);
     cyl(0.25, 0.25, 0.02, M.black, g, tx, 0.01, tz, 30);
@@ -929,7 +903,7 @@ export class Room {
     mesh(new THREE.SphereGeometry(0.06, 12, 12), this.floorLampBulb, fl, -1.0, 1.84, -0.6, { cast: false });
     this.floorLampLight = new THREE.PointLight('#ffb070', 0, 4.5, 1.5);
     this.floorLampLight.position.set(sx + 0.6, 1.7, sz - 0.7);
-    this.scene.add(this.floorLampLight);
+    if (this.quality === 'high') this.scene.add(this.floorLampLight);
     this.collider(sx + 1.6, sz - 0.1, 0.42, 0.42);
   }
 
@@ -963,9 +937,9 @@ export class Room {
       const p = cyl(0.004, 0.004, 0.18, std(['#ffb46b', '#c8553d', '#4f6d7a'][i % 3], 0.5), wt, 0.85 + (r() - 0.5) * 0.04, 1.04, -0.3 + (r() - 0.5) * 0.04);
       p.rotation.set((r() - 0.5) * 0.4, 0, (r() - 0.5) * 0.4);
     }
-    this.chair(wt, 0, -0.8, 0.1);
+    this.chair(wt, 1.3, -0.5, -0.9);
     this.collider(wx, wz, 2.05, 1.05);
-    this.collider(wx, wz - 0.8, 0.6, 0.6);
+    this.collider(wx + 1.3, wz - 0.5, 0.6, 0.6);
 
     // pinboard on the front wall
     const pb = new THREE.Group();
@@ -1014,7 +988,7 @@ export class Room {
     const g = this.group;
     this.studio = [];
     const spots = [
-      [-6.1, -5.1],
+      [-3.95, -4.85],
       [6.3, -4.4],
       [-6.2, 5.2],
       [6.0, 4.9],
@@ -1225,6 +1199,7 @@ export class Room {
     this.scene.environmentIntensity = amb * 0.32;
     this.sun.intensity = ease(0.8, 3.0) * 1.6;
     this.sceneryMat.color.setScalar(0.04 + ease(0.4, 2.6) * 0.96);
+    this.dawnMat.color.copy(this.sceneryMat.color);
 
     const gal = ease(1.2, 1.9) * flickerOnce(t, 1.2);
     this.galleryLight.intensity = gal * 11;
@@ -1273,6 +1248,11 @@ export class Room {
     this.floorLampBulb.color.set('#ffcf99').multiplyScalar(lounge * 3);
     const neon = ease(2.3, 2.5) * (t < 3.1 ? flicker(t * 23) : 1);
     this.neonMat.color.setScalar(neon * 1.4);
+    this.coffeeBar.signMat.color.setScalar(neon * 1.2);
+    if (!this._ringInit && neon > 0.5) {
+      this._ringInit = true;
+      this.stage.ringLightMat.color.setScalar(0.07);
+    }
     this.cardMats.forEach((m, i) => (m.emissiveIntensity = ease(2.2 + i * 0.07, 2.8 + i * 0.07) * 0.12));
 
     this.heroLight.intensity = HERO_KEY * (1 - ease(0.4, 2.0));
@@ -1290,7 +1270,11 @@ export class Room {
     this.updatePower(dt);
     for (const s of this.screens) s.update(dt);
     const sp = this.spinSpeed || 0;
-    for (const s of this.spin) s.obj.rotation[s.axis] += dt * s.speed * sp;
+    const mus = this.music;
+    const playing = !!(mus && mus.playing);
+    for (const s of this.spin) s.obj.rotation[s.axis] += dt * s.speed * (s.music ? (playing ? 1 : 0) : sp);
+    this.updateParty(dt, time, mus, playing);
+    this.updateDawn();
     for (const c of this.sway) {
       const t = time * c.speed + c.phase;
       c.holder.rotation.z = Math.sin(t) * 0.025;
@@ -1304,6 +1288,90 @@ export class Room {
       this.clockHands[0].rotation.z = -(((d.getHours() % 12) + m / 60) / 12) * Math.PI * 2;
       this.clockHands[1].rotation.z = -(m / 60) * Math.PI * 2;
     }
+  }
+
+  // Music-reactive layer: disco ball, stage ring, speakers, LED chase. Runs after updatePower
+  // so it can override the resting lighting while a record is on or party mode is flipped.
+  updateParty(dt, time, mus, playing) {
+    const pulse = playing ? mus.pulse() : 0;
+    const d = this.disco;
+    const wantDrop = playing && this.powered ? 1 : 0;
+    d.drop += (wantDrop - d.drop) * (1 - Math.exp(-2 * dt));
+    const drop = d.drop;
+    d.holder.position.y = ROOM.h;
+    d.wire.scale.y = 0.05 + drop * 0.95;
+    d.wire.position.y = -(0.05 + drop * 0.95) / 2;
+    d.ball.position.y = -0.2 - drop * 0.95;
+    d.ball.rotation.y += dt * (0.3 + drop * 0.9);
+    d.lights.forEach((l) => {
+      l.position.set(d.holder.position.x, ROOM.h - 0.2 - drop * 0.95, d.holder.position.z);
+      const a = time * 0.8;
+      l.target.position.set(l.position.x + Math.cos(a) * 4, 0, l.position.z + Math.sin(a) * 3.5);
+      l.color.setHSL((time * 0.15) % 1, 0.9, 0.6);
+      l.intensity = drop * (18 + pulse * 26) * (this.party ? 1.3 : 1);
+    });
+
+    const st = this.stage;
+    const hue = (time * 0.12) % 1;
+    st.ringMat.color.setHSL(hue, 0.9, 0.55).multiplyScalar(this.powered ? 0.6 + pulse * 2 : 0);
+    st.cones.forEach((c, i) => c.scale.setScalar(1 + pulse * (i % 2 ? 0.1 : 0.22)));
+
+    if (this.powered && this.powerT > 2) {
+      if (playing) {
+        // rainbow chase around the ceiling, kicking on the beat
+        const c = new THREE.Color();
+        const phase = time * 0.35;
+        for (let i = 0; i < this.ledCount; i++) {
+          c.setHSL((i / this.ledCount + phase) % 1, 0.9, 0.55).multiplyScalar(1.4 + pulse * 1.8);
+          this.led.setColorAt(i, c);
+        }
+        this.led.instanceColor.needsUpdate = true;
+        this._ledLit = -1;
+        this.studio.forEach((s) => (s.light.intensity *= this.party ? 0.35 : 0.7));
+        this.hemi.intensity *= this.party ? 0.55 : 0.8;
+      } else if (this._ledLit === -1) {
+        this._ledLit = null; // let updatePower repaint the warm strip
+        const c = new THREE.Color();
+        for (let i = 0; i < this.ledCount; i++) this.led.setColorAt(i, c.copy(this.ledColor));
+        this.led.instanceColor.needsUpdate = true;
+      }
+    }
+  }
+
+  // Story clock → window view and the colour of the light coming through it.
+  updateDawn() {
+    const k = this.dawn;
+    this.dawnMat.opacity = k;
+    if (!this.powered) return;
+    this.sun.color.lerpColors(NIGHT_SUN, DAY_SUN, k);
+    this.sun.intensity *= 0.45 + k * 0.9;
+  }
+
+  // A visitor's sketch, pinned to the front-wall pinboard (and restored on the next visit).
+  pinDoodle(url) {
+    const img = new Image();
+    img.onload = () => {
+      const tex = new THREE.Texture(img);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.needsUpdate = true;
+      if (!this.doodle) {
+        this.doodle = new THREE.Group();
+        this.doodle.position.set(-4.05, 1.95, HZ - 0.07);
+        this.doodle.rotation.set(0, Math.PI, 0.05);
+        this.group.add(this.doodle);
+        this.doodleMat = new THREE.MeshStandardMaterial({ roughness: 0.9 });
+        mesh(new THREE.PlaneGeometry(0.66, 0.465), this.doodleMat, this.doodle, 0, 0, 0, { cast: false });
+        mesh(new THREE.SphereGeometry(0.016, 10, 10), std('#ff5f3d', 0.4), this.doodle, 0, 0.2, 0.012, { cast: false });
+      }
+      this.doodleMat.map = tex;
+      this.doodleMat.needsUpdate = true;
+    };
+    img.src = url;
+  }
+
+  floorHeight(x, z) {
+    const c = this.stage.center;
+    return Math.hypot(x - c.x, z - c.z) < this.stage.radius - 0.05 ? 0.08 : 0;
   }
 
   // Before power: the room is black except the character's top light and the switch LED.

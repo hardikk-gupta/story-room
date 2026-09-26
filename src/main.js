@@ -14,7 +14,26 @@ import { Player, FollowCamera } from './game/player.js';
 import { Input } from './game/input.js';
 import { Intro } from './game/intro.js';
 import { Interactor } from './game/interact.js';
-import { Sfx } from './audio.js';
+import { Sfx, Music } from './audio.js';
+import { ui } from './ui.js';
+import { SparkFx } from './world/props.js';
+import { Story } from './game/story.js';
+import { Bulb } from './game/companion.js';
+import { PitchOS } from './game/pitchos.js';
+import {
+  Stations,
+  TreadmillStation,
+  RecordStation,
+  KaraokeStation,
+  SketchStation,
+  CoffeeStation,
+  DeskStation,
+  DumbbellStation,
+  NapStation,
+  PlantStation,
+  PartyStation,
+  BookStation,
+} from './game/stations.js';
 
 const $ = (id) => document.getElementById(id);
 history.scrollRestoration = 'manual';
@@ -93,6 +112,14 @@ const sfx = new Sfx();
 const room = new Room(scene, { quality });
 room.setDark();
 room.onEvent = (name, arg) => sfx.event(name, arg);
+const music = new Music(sfx);
+room.music = music;
+try {
+  const doodle = localStorage.getItem('studio-doodle');
+  if (doodle) room.pinDoodle(doodle);
+} catch {
+  /* storage blocked */
+}
 
 const fbx = new FBXLoader(manager);
 const CLIPS = {
@@ -124,6 +151,38 @@ const player = new Player(avatar, room.colliders);
 const follow = new FollowCamera(camera);
 const interactor = new Interactor({ avatar, player, followCam: follow, camera, room, input });
 interactor.sfx = sfx;
+player.floor = (x, z) => room.floorHeight(x, z);
+
+// ---------- Night Shift: story, companion, stations ----------
+const ctx = { scene, camera, avatar, player, follow, room, input, sfx, music, interactor };
+ctx.sparkFx = new SparkFx(scene);
+ctx.bulb = new Bulb(scene, sfx);
+ctx.stations = new Stations(ctx);
+ctx.story = new Story(ctx);
+ctx.pitchos = new PitchOS(ctx);
+const { stations, story, bulb, pitchos, sparkFx } = ctx;
+[
+  new TreadmillStation(),
+  new RecordStation(room),
+  new KaraokeStation(room),
+  new SketchStation(),
+  new CoffeeStation(room),
+  new DeskStation(),
+  new DumbbellStation(room),
+  new NapStation(),
+  new PlantStation(room),
+  new PartyStation(),
+  new BookStation(),
+].forEach((st) => stations.add(st));
+// the gallery spark: pick up three different frames
+const inspected = new Set();
+ctx.galleryAnchor = { id: 'gallery', pos: new THREE.Vector3(-6.4, 1.4, 0) };
+ctx.galleryCount = () => inspected.size;
+interactor.onInspect = (i) => {
+  inspected.add(i);
+  story.render();
+  if (inspected.size >= 3 && !story.has('gallery')) story.complete('gallery', room.frames[i].wallPos);
+};
 avatar.onStep = (k) => sfx.event('step', k);
 
 const soundBtn = $('sound');
@@ -172,7 +231,24 @@ addEventListener('touchend', (e) => {
   if (dy < 8) introCtl.skip();
 });
 
-input.on('action', () => mode === 'play' && interactor.action());
+input.on('action', () => {
+  if (mode !== 'play' || pitchos.isOpen) return;
+  if (stations.busy) stations.action();
+  else if (interactor.busy) interactor.action();
+  else if (stations.focus) stations.start(stations.focus);
+  else if (interactor.focus) interactor.action();
+  else if (bulb.current) bulb.skip();
+});
+input.on('release', () => mode === 'play' && stations.release());
+input.on('cancel', () => {
+  if (mode !== 'play' || pitchos.isOpen) return;
+  if (interactor.state === 'inspect') interactor.putBack();
+  else stations.cancel();
+});
+$('sh-leave').addEventListener('click', () => stations.active && stations.active.cancellable && stations.leave());
+$('q-portfolio').addEventListener('click', () => {
+  if (!stations.busy && !interactor.busy) pitchos.open(null);
+});
 
 // ---------- game start ----------
 const hud = $('hud');
@@ -200,6 +276,9 @@ function enterPlay() {
   input.enabled = true;
   hud.hidden = false;
   if (input.touch) touchUi.hidden = false;
+  // Bulb pops out of the light switch and the story begins
+  bulb.spawn(new THREE.Vector3(-1.9, 1.45, -5.7));
+  setTimeout(() => story.start(), 700);
   setTimeout(() => $('controls-hint').classList.add('fade'), 9000);
 }
 
@@ -245,18 +324,40 @@ function frame() {
     const paused = checkOrientation();
     input.poll();
     const look = input.consumeLook();
+    const busy = stations.busy || interactor.busy;
     if (!interactor.busy || interactor.state === 'approach') follow.addLook(look.x, look.y);
-    const move = paused || interactor.busy ? { x: 0, y: 0 } : input.move;
-    player.update(dt, move, input.run, follow.yaw);
+    const owned = stations.update(dt);
+    if (!owned) {
+      const move = paused || busy ? { x: 0, y: 0 } : input.move;
+      player.update(dt, move, input.run, follow.yaw);
+    }
     interactor.update(dt);
     follow.update(dt, player.pos);
-    // head follows the camera a little, like the character is looking around
-    if (!interactor.busy) {
+    stations.applyCamera(camera);
+
+    // what's in front of us: a station or a frame (whichever is a better match)
+    if (!busy) {
+      const s = stations.best();
+      const f = interactor.findFocus();
+      const useStation = s.station && (!f || s.score <= interactor.bestScore);
+      stations.focus = useStation ? s.station : null;
+      interactor.setFocus(useStation ? null : f);
+      ui.prompt(useStation ? s.station.promptText() : f ? 'Pick up' : null);
+      ui.actionButton(useStation ? s.station.verb : 'Grab', !!(useStation || f));
+      // head follows the camera a little, like the character is looking around
       let rel = follow.yaw + Math.PI - player.yaw;
       rel = Math.atan2(Math.sin(rel), Math.cos(rel));
       avatar.lookYaw = Math.abs(rel) < 1.9 ? rel * 0.6 : 0;
       avatar.lookPitch = -follow.pitch * 0.5 - 0.05;
+    } else {
+      stations.focus = null;
+      if (stations.busy) ui.prompt(null);
+      avatar.lookYaw = 0;
     }
+    document.body.classList.toggle('in-station', stations.busy && stations.phase !== 'approach');
+    story.update(dt);
+    bulb.update(dt, player, camera);
+    sparkFx.update(dt);
   }
 
   avatar.update(dt);
@@ -267,4 +368,4 @@ function frame() {
 requestAnimationFrame(frame);
 
 // debug handle for tests
-window.__studio = { scene, camera, avatar, player, room, introCtl, follow, interactor, sfx, renderer, get mode() { return mode; } };
+window.__studio = { scene, camera, avatar, player, room, introCtl, follow, interactor, sfx, renderer, music, stations, story, bulb, pitchos, get mode() { return mode; } };

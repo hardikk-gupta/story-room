@@ -1,6 +1,6 @@
 // Everything a visitor reads lives here. Edit this file to make the studio yours.
 //
-// Project images: drop files into /public/projects/ and set `image: '/projects/your-file.jpg'`.
+// Project images: drop files into /public/projects/ and set `image: 'projects/your-file.jpg'`.
 // Leave `image` out and a generated cover is painted from `palette` instead.
 
 export const profile = {

@@ -10,10 +10,12 @@ import * as THREE from 'three';
 
 const stripName = (n) => n.replace(/^mixamorig[:_]?/, '');
 
-function bonesByName(root, strip = false) {
+// Target: real bones. Source: anything named like a Mixamo joint (a slimmed animation file
+// has no skin, so its joints load as plain Object3Ds rather than Bones).
+function bonesByName(root, source = false) {
   const map = new Map();
   root.traverse((o) => {
-    if (o.isBone) map.set(strip ? stripName(o.name) : o.name, o);
+    if (source ? /^mixamorig/.test(o.name) : o.isBone) map.set(source ? stripName(o.name) : o.name, o);
   });
   return map;
 }

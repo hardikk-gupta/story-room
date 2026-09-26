@@ -197,7 +197,11 @@ export class Avatar {
     // stride-locked phase so feet don't slide at any speed
     const stride = back > 0.5 ? this.backStride : THREE.MathUtils.lerp(this.walkStride, this.runStride, wRun);
     const rate = Math.max(v, this.turnShuffle * 0.9) / stride;
+    const prevPhase = this.phase;
     this.phase = (this.phase + rate * dt) % 1;
+    // footfalls at the two contact points of the cycle
+    const crossed = (a) => (this.phase >= prevPhase ? prevPhase < a && a <= this.phase : a > prevPhase || a <= this.phase);
+    if (v > 0.25 && this.onStep && (crossed(0.02) || crossed(0.52))) this.onStep(Math.min(1, 0.45 + v * 0.18));
     this.idleTime += dt;
     this.actions.idle.time = this.idleTime % this.clips.idle.duration;
     this.actions.walk.time = this.phase * this.clips.walk.duration;

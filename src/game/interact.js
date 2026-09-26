@@ -135,6 +135,7 @@ export class Interactor {
     desc.textContent = p.desc;
     overlay.hidden = false;
     requestAnimationFrame(() => overlay.classList.add('open'));
+    this.sfx && this.sfx.event('open');
     if (document.pointerLockElement) document.exitPointerLock();
   }
 
@@ -190,6 +191,7 @@ export class Interactor {
       if (this.t >= 0.5) {
         this.state = 'lift';
         this.t = 0;
+        this.sfx && this.sfx.event('lift');
         this.from = { pos: g.position.clone(), q: g.quaternion.clone() };
       }
     } else if (this.state === 'lift') {
@@ -228,6 +230,7 @@ export class Interactor {
         g.quaternion.copy(f.wallQuat);
         this.state = 'release';
         this.t = 0;
+        this.sfx && this.sfx.event('hang');
       }
     } else if (this.state === 'release') {
       const k = 1 - ease(clamp01(this.t / 0.4));

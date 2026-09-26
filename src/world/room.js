@@ -827,7 +827,7 @@ export class Room {
     // label strip under the gallery
     const lab = mesh(
       new THREE.PlaneGeometry(2.4, 0.3),
-      new THREE.MeshBasicMaterial({ map: TX.labelTexture('SELECTED WORK — PRESS SPACE TO PICK ONE UP', { w: 2048, h: 256, color: '#f4f1ea', font: '600 70px Inter' }), transparent: true, opacity: 0.55 }),
+      new THREE.MeshBasicMaterial({ map: TX.labelTexture('SELECTED WORK — PRESS SPACE TO PICK ONE UP', { w: 2048, h: 256, color: '#f4f1ea', font: "600 70px Inter, 'Helvetica Neue', Arial, sans-serif" }), transparent: true, opacity: 0.55 }),
       g,
       -HX + 0.02,
       0.62,
@@ -1173,6 +1173,18 @@ export class Room {
     this.powered = true;
     this.powerT = 0;
     this.flipSwitch();
+    this.emit('switch');
+    // one-shot cues for the sound layer, keyed to the same timeline as the visuals
+    this.cues = [
+      ...this.studio.map((_, i) => [0.35 + i * 0.32, 'studio', i]),
+      [0.6, 'hum'],
+      [1.4, 'boot'],
+      [2.3, 'neon'],
+    ];
+  }
+
+  emit(name, arg) {
+    this.onEvent && this.onEvent(name, arg);
   }
 
   // Everything that happens after the switch, keyed off seconds since the click.
@@ -1180,6 +1192,10 @@ export class Room {
     if (!this.powered) return;
     const t = (this.powerT += dt);
     const ease = (a, b) => smooth(clamp01((t - a) / (b - a)));
+    while (this.cues.length && this.cues[0][0] <= t) {
+      const [, name, arg] = this.cues.shift();
+      this.emit(name, arg);
+    }
 
     // LED strip sweeps around the ceiling.
     const sweep = clamp01((t - 0.05) / 1.6);

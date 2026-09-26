@@ -14,6 +14,7 @@ import { Player, FollowCamera } from './game/player.js';
 import { Input } from './game/input.js';
 import { Intro } from './game/intro.js';
 import { Interactor } from './game/interact.js';
+import { Sfx } from './audio.js';
 
 const $ = (id) => document.getElementById(id);
 history.scrollRestoration = 'manual';
@@ -82,9 +83,16 @@ function setProgress(p) {
   $('loader-pct').textContent = (shown * 100).toFixed(0);
 }
 const loader = new GLTFLoader(manager);
+const BASE = import.meta.env.BASE_URL; // './' so the build works from any host path
 
+// Canvas textures (covers, labels, screens) need the web fonts loaded before they're painted.
+await Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, 2000))]);
+await Promise.all(['700 64px "Space Grotesk"', '600 32px Inter'].map((f) => document.fonts.load(f).catch(() => {})));
+
+const sfx = new Sfx();
 const room = new Room(scene, { quality });
 room.setDark();
+room.onEvent = (name, arg) => sfx.event(name, arg);
 
 const fbx = new FBXLoader(manager);
 const CLIPS = {
@@ -96,9 +104,9 @@ const CLIPS = {
   hold: 'holding-idle.fbx',
 };
 const [avatarGltf, idleGltf, ...fbxClips] = await Promise.all([
-  loader.loadAsync('/models/avatar.glb'),
-  loader.loadAsync('/anims/Soldier.glb'),
-  ...Object.values(CLIPS).map((f) => fbx.loadAsync(`/anims/${f}`).catch(() => null)),
+  loader.loadAsync(`${BASE}models/avatar.glb`),
+  loader.loadAsync(`${BASE}anims/idle.glb`),
+  ...Object.values(CLIPS).map((f) => fbx.loadAsync(`${BASE}anims/${f}`).catch(() => null)),
 ]);
 setProgress(1);
 
@@ -115,6 +123,21 @@ const input = new Input(canvas);
 const player = new Player(avatar, room.colliders);
 const follow = new FollowCamera(camera);
 const interactor = new Interactor({ avatar, player, followCam: follow, camera, room, input });
+interactor.sfx = sfx;
+avatar.onStep = (k) => sfx.event('step', k);
+
+const soundBtn = $('sound');
+const paintSound = () => {
+  soundBtn.setAttribute('aria-pressed', String(!sfx.muted));
+  soundBtn.querySelector('span').textContent = sfx.muted ? 'Sound off' : 'Sound on';
+};
+soundBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  sfx.unlock();
+  sfx.setMuted(!sfx.muted);
+  paintSound();
+});
+paintSound();
 
 let mode = 'intro';
 const introCtl = new Intro({
@@ -142,7 +165,7 @@ input.on('anyKey', (code) => {
   }
 });
 let touchStartY = null;
-addEventListener('touchstart', (e) => (touchStartY = e.touches[0].clientY), { passive: true });
+addEventListener('touchstart', (e) => (touchStartY = e.target.closest('button') ? null : e.touches[0].clientY), { passive: true });
 addEventListener('touchend', (e) => {
   if (mode !== 'intro' || touchStartY === null) return;
   const dy = Math.abs(e.changedTouches[0].clientY - touchStartY);
@@ -244,4 +267,4 @@ function frame() {
 requestAnimationFrame(frame);
 
 // debug handle for tests
-window.__studio = { scene, camera, avatar, player, room, introCtl, follow, interactor, get mode() { return mode; } };
+window.__studio = { scene, camera, avatar, player, room, introCtl, follow, interactor, sfx, renderer, get mode() { return mode; } };

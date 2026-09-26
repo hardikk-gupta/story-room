@@ -259,7 +259,7 @@ export function posterArt(seed, colors, label) {
   return toTexture(c);
 }
 
-export function labelTexture(text, { w = 512, h = 128, color = '#fff', bg = null, font = '600 64px Inter' } = {}) {
+export function labelTexture(text, { w = 512, h = 128, color = '#fff', bg = null, font = "600 64px Inter, 'Helvetica Neue', Arial, sans-serif" } = {}) {
   const [c, g] = canvas(w, h);
   if (bg) {
     g.fillStyle = bg;

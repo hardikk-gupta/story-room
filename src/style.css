@@ -78,6 +78,22 @@ kbd {
   cursor: pointer;
 }
 
+#sound {
+  position: fixed;
+  top: max(16px, env(safe-area-inset-top));
+  right: max(16px, env(safe-area-inset-right));
+  z-index: 30;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+#sound[aria-pressed='false'] {
+  color: var(--ink-dim);
+}
+body.is-loading #sound {
+  opacity: 0;
+}
+
 /* ---------- loader ---------- */
 #loader {
   position: fixed;
